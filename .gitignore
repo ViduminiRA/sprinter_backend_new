@@ -1,0 +1,59 @@
+# Python virtualenvs
+venv/
+.venv/
+env/
+venv/*
+.env
+
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+pip-wheel-metadata/
+wheelhouse/
+
+# Test / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# C / C++ build artifacts
+*.o
+*.obj
+*.so
+*.a
+*.lib
+*.dll
+*.exe
+*.out
+a.out
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# PyCharm / IDE
+.idea/
+*.iml
+
+# VS Code
+.vscode/
+
+# Misc
+*.log
+*.tmp
+*.swp
+.DS_Store
+
+# Optional: local secrets / env files
+.env
+.local
+secrets.json
