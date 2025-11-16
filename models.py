@@ -35,5 +35,17 @@ class PredictResponse(BaseModel):
     gap: float
     probability: float
     verdict: str
-    horizon_days: int
+    horizon_days: Optional[int] = None
     timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+class PredictionHistory(BaseModel):
+    id: str = Field(..., alias="_id")
+    user_id: str
+    user_email: EmailStr
+    input: PredictRequest
+    output: PredictResponse
+    timestamp: datetime
+
+    class Config:
+        populate_by_name = True

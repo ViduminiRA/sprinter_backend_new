@@ -4,19 +4,23 @@ from datetime import timedelta, datetime
 import joblib
 import pandas as pd
 import numpy as np
+from routes.predictions import router as predictions_router
+from contextlib import asynccontextmanager
+from database import create_indexes
 
 from models import (
     UserSignUp, UserSignIn, Token, UserResponse,
     PredictRequest, PredictResponse
 )
-from auth import (
-    hash_password, verify_password, create_access_token, get_current_user
-)
+from auth import hash_password, verify_password
+from auth.jwt_handler import create_access_token, get_current_user
+
 from database import users_collection, predictions_collection
 from config import (
     MODEL_PATH, FEATURES_PATH, BENCHMARK_TIME,
     ACCESS_TOKEN_EXPIRE_MINUTES, SCALER_PATH
 )
+
 
 # Initialize FastAPI
 app = FastAPI(
@@ -34,6 +38,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    await create_indexes()
+    yield
+    # Shutdown (if needed)
+app = FastAPI(lifespan=lifespan)
+app.include_router(predictions_router)
+
+
 # Load ML model at startup
 model = joblib.load(MODEL_PATH)
 feature_cols = joblib.load(FEATURES_PATH)
@@ -42,8 +56,8 @@ scaler = joblib.load(SCALER_PATH)
 # ==================== AUTH ENDPOINTS ====================
 
 @app.post("/signup", response_model=Token, status_code=status.HTTP_201_CREATED)
-def signup(user: UserSignUp):
-    if users_collection.find_one({"email": user.email}):
+async def signup(user: UserSignUp):
+    if await users_collection.find_one({"email": user.email}):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered"
@@ -55,7 +69,7 @@ def signup(user: UserSignUp):
         "password": hash_password(user.password),
         "created_at": pd.Timestamp.utcnow()
     }
-    users_collection.insert_one(user_dict)
+    await users_collection.insert_one(user_dict)
 
     access_token = create_access_token(
         data={"sub": user.email},
@@ -66,8 +80,8 @@ def signup(user: UserSignUp):
 
 
 @app.post("/signin", response_model=Token)
-def signin(user: UserSignIn):
-    db_user = users_collection.find_one({"email": user.email})
+async def signin(user: UserSignIn):
+    db_user = await users_collection.find_one({"email": user.email})
 
     if not db_user or not verify_password(user.password, db_user["password"]):
         raise HTTPException(
@@ -84,9 +98,8 @@ def signin(user: UserSignIn):
 
 
 @app.get("/me", response_model=UserResponse)
-def get_profile(current_user: dict = Depends(get_current_user)):
+async def get_profile(current_user: dict = Depends(get_current_user)):
     return current_user
-
 
 # ==================== PREDICTION HELPERS ====================
 
@@ -131,7 +144,7 @@ def calculate_verdict(gap: float, prob: float) -> str:
 # ==================== PREDICTION ENDPOINT ====================
 
 @app.post("/predict", response_model=PredictResponse)
-def predict(
+async def predict(
         req: PredictRequest,
         current_user: dict = Depends(get_current_user)
 ):
@@ -169,7 +182,7 @@ def predict(
             horizon_days=max(0, horizon_days)
         )
 
-        predictions_collection.insert_one({
+        await predictions_collection.insert_one({
             "user_id": current_user["id"],
             "user_email": current_user["email"],
             "input": req.dict(),
